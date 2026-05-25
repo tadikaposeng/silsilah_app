@@ -2,7 +2,7 @@
 // Utils.gs — Shared utility functions
 // ============================================================
 
-var DRIVE_FOLDER_ID = '1QP0-DjZYAbIKRmU7ShhR_L7claOGjZ_I';
+var DRIVE_FOLDER_ID = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
 
 function generateId() {
   return Utilities.getUuid();
