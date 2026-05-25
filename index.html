@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Silsilah — ระบบแผนผังเครือญาติ</title>
+  <meta name="description" content="ค้นหาและดูแผนผังเครือญาติแบบ Dynamic ขยายได้ไม่จำกัดชั้น">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+
+<body class="bg-mesh min-h-screen">
+
+  <!-- NAVBAR -->
+  <nav class="navbar px-4 py-3 flex items-center gap-3">
+    <div class="flex items-center gap-2 flex-shrink-0">
+      <span class="text-2xl">🌳</span>
+      <span class="font-bold text-white hidden sm:block">Silsilah</span>
+    </div>
+    <div class="search-wrap flex-1 max-w-xl mx-auto">
+      <span class="search-icon">🔍</span>
+      <input id="search-input" type="search" placeholder="ค้นหาชื่อ นามสกุล หรือชื่อเล่น..." autocomplete="off">
+    </div>
+    <div class="flex items-center gap-2 flex-shrink-0" id="nav-auth">
+      <a href="login.html" class="btn btn-ghost btn-sm">เข้าสู่ระบบ</a>
+    </div>
+  </nav>
+
+  <!-- SEARCH VIEW -->
+  <div id="view-search" class="max-w-2xl mx-auto px-4 py-8">
+    <div id="search-empty" class="text-center py-16">
+      <div class="text-6xl mb-4">🌿</div>
+      <h2 class="text-2xl font-bold text-white mb-2">ค้นหาเครือญาติ</h2>
+      <p class="text-white/50 mb-6">พิมพ์ชื่อในช่องค้นหาเพื่อเริ่มต้น</p>
+      <button id="btn-add-first" class="btn btn-primary hidden" onclick="openAddPerson(null)">+ เพิ่มบุคคลแรก</button>
+    </div>
+    <div id="search-loading" class="hidden text-center py-8">
+      <div class="w-10 h-10 border-4 border-white/20 border-t-amber-400 rounded-full animate-spin mx-auto"></div>
+      <p class="text-white/50 mt-3">กำลังค้นหา...</p>
+    </div>
+    <div id="search-results" class="search-results hidden"></div>
+    <div id="search-not-found" class="hidden text-center py-12">
+      <div class="text-5xl mb-3">🔎</div>
+      <p class="text-white/60 mb-4">ไม่พบข้อมูล</p>
+      <button class="btn btn-primary" onclick="openAddPerson(null)">+ เพิ่มข้อมูลใหม่</button>
+    </div>
+  </div>
+
+  <!-- GRAPH VIEW -->
+  <div id="view-graph" class="hidden">
+    <div class="flex items-center gap-2 px-4 py-2 bg-black/30 border-b border-white/10">
+      <button onclick="backToSearch()" class="btn btn-ghost btn-sm">← ค้นหา</button>
+      <span class="text-white/40">|</span>
+      <span id="graph-person-name" class="text-white font-semibold"></span>
+      <span class="flex-1"></span>
+      <button onclick="graph.zoomIn()" class="btn btn-ghost btn-sm px-2">+</button>
+      <button onclick="graph.zoomOut()" class="btn btn-ghost btn-sm px-2">−</button>
+      <button onclick="graph.resetView()" class="btn btn-ghost btn-sm px-2">⌖</button>
+      <button id="btn-edit-person" class="btn btn-ghost btn-sm hidden" onclick="openEditPerson()">✏️ แก้ไข</button>
+      <button id="btn-merge-person" class="btn btn-ghost btn-sm hidden" onclick="openMerge()">🔗 Merge</button>
+      <a href="admin.html" id="link-admin" class="btn btn-ghost btn-sm hidden">⚙️ Admin</a>
+    </div>
+    <div id="graph-container"></div>
+  </div>
+
+  <!-- LEGEND -->
+  <div id="graph-legend"
+    class="hidden fixed bottom-4 left-4 z-50 bg-black/60 backdrop-blur-sm rounded-xl p-3 text-xs space-y-1">
+    <div class="flex items-center gap-2"><span class="w-4 h-1 rounded inline-block"
+        style="background:#f59e0b"></span><span class="text-white/70">พ่อ/แม่</span></div>
+    <div class="flex items-center gap-2"><span class="w-4 h-1 rounded inline-block"
+        style="background:#10b981"></span><span class="text-white/70">ลูก</span></div>
+    <div class="flex items-center gap-2"><span class="w-4 h-1 rounded inline-block"
+        style="background:#f43f5e"></span><span class="text-white/70">คู่สมรส</span></div>
+    <div class="flex items-center gap-2"><span class="w-4 h-1 rounded inline-block"
+        style="background:#8b5cf6"></span><span class="text-white/70">พี่/น้อง</span></div>
+  </div>
+
+  <!-- MODAL: Person Detail -->
+  <div id="modal-detail" class="modal-overlay hidden" onclick="handleOverlayClick(event,'modal-detail')">
+    <div class="modal-box">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="modal-title mb-0">ข้อมูลบุคคล</h2>
+        <button onclick="UI.closeModal('modal-detail')" class="text-white/40 hover:text-white text-xl">✕</button>
+      </div>
+      <div id="detail-content"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: Add/Edit Person -->
+  <div id="modal-person" class="modal-overlay hidden" onclick="handleOverlayClick(event,'modal-person')">
+    <div class="modal-box">
+      <div class="flex justify-between items-center mb-4">
+        <h2 id="person-modal-title" class="modal-title mb-0">เพิ่มบุคคล</h2>
+        <button onclick="UI.closeModal('modal-person')" class="text-white/40 hover:text-white text-xl">✕</button>
+      </div>
+      <div id="person-form-wrap"></div>
+      <div id="duplicate-warning" class="hidden mt-3 p-3 rounded-xl bg-amber-500/20 text-amber-300 text-sm"></div>
+      <div class="flex gap-2 mt-4">
+        <button onclick="UI.closeModal('modal-person')" class="btn btn-ghost flex-1">ยกเลิก</button>
+        <button id="btn-save-person" onclick="savePerson()" class="btn btn-primary flex-1">บันทึก</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Add Relation -->
+  <div id="modal-relation" class="modal-overlay hidden" onclick="handleOverlayClick(event,'modal-relation')">
+    <div class="modal-box">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="modal-title mb-0">เพิ่มความสัมพันธ์</h2>
+        <button onclick="UI.closeModal('modal-relation')" class="text-white/40 hover:text-white text-xl">✕</button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="form-label">ประเภทความสัมพันธ์</label>
+          <select id="rel-type" class="form-input">
+            <option value="parent">พ่อ/แม่ (Parent)</option>
+            <option value="child">ลูก (Child)</option>
+            <option value="spouse">คู่สมรส (Spouse)</option>
+            <option value="sibling">พี่/น้อง (Sibling)</option>
+            <option value="adopted_parent">พ่อ/แม่อุปถัมภ์</option>
+            <option value="adopted_child">ลูกบุญธรรม</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">ค้นหาบุคคล</label>
+          <input id="rel-search" class="form-input" placeholder="พิมพ์ชื่อเพื่อค้นหา...">
+          <div id="rel-search-results" class="mt-2 space-y-2 max-h-48 overflow-y-auto"></div>
+        </div>
+        <div id="rel-selected" class="hidden p-3 rounded-xl bg-white/10 text-white text-sm"></div>
+        <button id="btn-add-new-for-rel" onclick="addNewForRelation()" class="btn btn-ghost w-full">+
+          เพิ่มบุคคลใหม่</button>
+      </div>
+      <div class="flex gap-2 mt-4">
+        <button onclick="UI.closeModal('modal-relation')" class="btn btn-ghost flex-1">ยกเลิก</button>
+        <button id="btn-save-rel" onclick="saveRelation()" class="btn btn-primary flex-1">บันทึกความสัมพันธ์</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Merge -->
+  <div id="modal-merge" class="modal-overlay hidden" onclick="handleOverlayClick(event,'modal-merge')">
+    <div class="modal-box">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="modal-title mb-0">🔗 รวมบุคคล (Merge)</h2>
+        <button onclick="UI.closeModal('modal-merge')" class="text-white/40 hover:text-white text-xl">✕</button>
+      </div>
+      <p class="text-white/60 text-sm mb-4">รวม <strong class="text-white" id="merge-source-name"></strong>
+        เข้ากับบุคคลที่ค้นหาด้านล่าง</p>
+      <input id="merge-search" class="form-input mb-3" placeholder="ค้นหาบุคคลที่ต้องการรวม...">
+      <div id="merge-results" class="space-y-2 max-h-48 overflow-y-auto mb-4"></div>
+      <div id="merge-target-selected" class="hidden p-3 rounded-xl bg-rose-500/20 text-rose-300 text-sm mb-4"></div>
+      <div class="flex gap-2">
+        <button onclick="UI.closeModal('modal-merge')" class="btn btn-ghost flex-1">ยกเลิก</button>
+        <button id="btn-confirm-merge" onclick="confirmMerge()" class="btn btn-danger flex-1">⚠️ ยืนยัน Merge</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Manage Relations -->
+  <div id="modal-manage-relations" class="modal-overlay hidden" onclick="handleOverlayClick(event,'modal-manage-relations')">
+    <div class="modal-box" style="max-width:520px">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="modal-title mb-0">✏️ จัดการความสัมพันธ์</h2>
+        <button onclick="UI.closeModal('modal-manage-relations')" class="text-white/40 hover:text-white text-xl">✕</button>
+      </div>
+      <p id="manage-rel-person-name" class="text-amber-300 text-sm mb-4"></p>
+      <div id="manage-rel-list" class="space-y-2 max-h-96 overflow-y-auto pr-1"></div>
+      <div class="mt-4">
+        <button onclick="UI.closeModal('modal-manage-relations')" class="btn btn-ghost w-full">ปิด</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/auth.js"></script>
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/ui.js"></script>
+  <script src="assets/js/person.js"></script>
+  <script>
+    // ============================================================
+    // graph.js — SVG/HTML hybrid Family Graph renderer (inlined)
+    // ============================================================
+    const FamilyGraph = (() => {
+
+      const CARD_W = 130, CARD_H = 170;
+      const H_SPACE = 190, V_SPACE = 300;
+      // controls: bottom:-63px → extends 63px below card bottom
+      const CTRL_BELOW = 63;   // px controls extends below card
+      const V_ANCHOR   = CARD_H / 2 + CTRL_BELOW; // vertical edge anchor offset from grid center
+      const REL_COLORS = { parent: '#f59e0b', child: '#10b981', spouse: '#f43f5e', sibling: '#8b5cf6', adopted_parent: '#f97316', adopted_child: '#06b6d4' };
+      const REL_TH = { parent: 'พ่อ/แม่', child: 'ลูก', spouse: 'คู่สมรส', sibling: 'พี่/น้อง', adopted_parent: 'พ่อ/แม่อุปถัมภ์', adopted_child: 'ลูกบุญธรรม' };
+
+      class Graph {
+        constructor(containerId) {
+          this.containerId = containerId;
+          this.container = null;
+          this.viewport = null;
+          this.svgEl = null;
+          this.edgeGroup = null;
+          this.nodeContainer = null;
+
+          this.nodes = new Map();
+          this.grid = new Map();
+          this.nodeGrid = new Map();
+          this.expanded = new Set();
+          this.edges = new Set();
+
+          this.scale = 1; this.panX = 0; this.panY = 0;
+          this.dragging = false; this.lastMouse = null;
+          this._selectPersonCallback = null;
+          this._addRelationCallback = null;
+          this._pinNodeCallback = null;
+        }
+
+        init() {
+          this.container = document.getElementById(this.containerId);
+          this.container.innerHTML = `
+        <svg id="graph-svg" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:1;">
+          <defs>
+            <filter id="edge-glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="2" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <g id="graph-edges"></g>
+        </svg>
+        <div id="graph-viewport" style="position:absolute;width:0;height:0;transform-origin:0 0;will-change:transform;z-index:2;">
+          <div id="graph-nodes" style="position:absolute;top:0;left:0;"></div>
+        </div>`;
+
+          this.viewport = document.getElementById('graph-viewport');
+          this.svgEl = document.getElementById('graph-svg');
+          this.edgeGroup = document.getElementById('graph-edges');
+          this.nodeContainer = document.getElementById('graph-nodes');
+
+          this._initDragZoom();
+          this._centerViewport();
+        }
+
+        _centerViewport() {
+          const rect = this.container.getBoundingClientRect();
+          this.panX = rect.width / 2;
+          this.panY = rect.height / 2;
+          this._applyTransform();
+        }
+
+        _applyTransform() {
+          this.viewport.style.transform = `translate(${this.panX}px,${this.panY}px) scale(${this.scale})`;
+          this._redrawEdges();
+        }
+
+        _initDragZoom() {
+          const c = this.container;
+          c.addEventListener('mousedown', e => { if (e.button !== 0) return; this.dragging = true; this.lastMouse = { x: e.clientX, y: e.clientY }; c.style.cursor = 'grabbing'; });
+          window.addEventListener('mouseup', () => { this.dragging = false; c.style.cursor = 'grab'; });
+          window.addEventListener('mousemove', e => {
+            if (!this.dragging) return;
+            this.panX += e.clientX - this.lastMouse.x;
+            this.panY += e.clientY - this.lastMouse.y;
+            this.lastMouse = { x: e.clientX, y: e.clientY };
+            this._applyTransform();
+          });
+          c.addEventListener('wheel', e => {
+            e.preventDefault();
+            const delta = e.deltaY < 0 ? 1.1 : 0.9;
+            const rect = c.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            this.panX = mx - (mx - this.panX) * delta;
+            this.panY = my - (my - this.panY) * delta;
+            this.scale = Math.min(3, Math.max(0.2, this.scale * delta));
+            this._applyTransform();
+          }, { passive: false });
+          c.style.cursor = 'grab';
+
+          let lastDist = 0;
+          c.addEventListener('touchstart', e => { if (e.touches.length === 2) lastDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); });
+          c.addEventListener('touchmove', e => {
+            if (e.touches.length === 2) {
+              const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+              if (lastDist) { const d = dist / lastDist; this.scale = Math.min(3, Math.max(0.2, this.scale * d)); this._applyTransform(); }
+              lastDist = dist;
+            }
+          });
+        }
+
+        gridPos(row, col) { return { x: col * H_SPACE, y: row * V_SPACE }; }
+
+        freeCol(row, preferCol, dir = 1) {
+          let col = preferCol;
+          while (this.grid.has(`${row},${col}`)) col += dir;
+          return col;
+        }
+
+        addRootNode(person) {
+          this.nodes.clear(); this.grid.clear(); this.nodeGrid.clear();
+          this.edges.clear(); this.expanded.clear();
+          this._edgeData = [];
+          this.edgeGroup.innerHTML = ''; this.nodeContainer.innerHTML = '';
+          this._placeNode(person, 0, 0);
+        }
+
+        _placeNode(person, row, col) {
+          if (this.nodes.has(person.personId)) return;
+          const actualCol = this.freeCol(row, col);
+          this.grid.set(`${row},${actualCol}`, person.personId);
+          this.nodeGrid.set(person.personId, { row, col: actualCol });
+          this.nodes.set(person.personId, { person, row, col: actualCol, el: null });
+          this._renderNode(person, row, actualCol);
+        }
+
+        _renderNode(person, row, col) {
+          const { x, y } = this.gridPos(row, col);
+          const el = document.createElement('div');
+          el.id = 'node-' + person.personId;
+          el.className = 'person-node';
+          el.style.cssText = `position:absolute;left:${x - CARD_W / 2}px;top:${y - CARD_H / 2}px;width:${CARD_W}px;height:${CARD_H}px;overflow:visible;animation:nodeAppear .4s ease;`;
+
+          const photoHTML = person.photoUrl
+            ? `<img src="${person.photoUrl}" class="w-full h-full object-cover" onerror="this.style.display='none'">`
+            : UI.genderIcon(person.gender);
+          const isAlive = !person.deathDate;
+
+          el.innerHTML = `
+        <div class="node-card ${!isAlive ? 'node-deceased' : ''}" style="height:${CARD_H}px;position:relative;">
+          <button class="nbtn-pin" data-pid="${person.personId}" title="ปักหมุด — เริ่มจากบุคคลนี้">📌</button>
+          <div class="node-photo" data-pid="${person.personId}">${photoHTML}</div>
+          <div class="node-name">${person.firstName}</div>
+          ${person.nickName ? `<div class="node-nick">"${person.nickName}"</div>` : ''}
+        </div>
+        <div class="node-controls">
+          <button class="nbtn nbtn-up"   data-pid="${person.personId}" data-dir="parent"  title="พ่อ/แม่">↑</button>
+          <button class="nbtn nbtn-left" data-pid="${person.personId}" data-dir="spouse"  title="คู่สมรส">💑</button>
+          <button class="nbtn nbtn-plus" data-pid="${person.personId}" data-dir="add"     title="เพิ่มความสัมพันธ์">+</button>
+          <button class="nbtn nbtn-right"data-pid="${person.personId}" data-dir="sibling" title="พี่/น้อง">👨‍👩‍👧‍👦</button>
+          <button class="nbtn nbtn-down" data-pid="${person.personId}" data-dir="child"   title="ลูก">↓</button>
+        </div>`;
+
+          el.querySelector('.node-photo').addEventListener('click', () => {
+            if (this._selectPersonCallback) this._selectPersonCallback(person);
+          });
+          // Pin button
+          el.querySelector('.nbtn-pin').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (this._pinNodeCallback) this._pinNodeCallback(person);
+          });
+          // Touch: tap card (not photo) to toggle controls on mobile
+          el.querySelector('.node-card').addEventListener('touchend', (e) => {
+            if (e.target.closest('.node-photo') || e.target.closest('.nbtn-pin')) return;
+            e.preventDefault();
+            const isActive = el.classList.contains('touch-active');
+            document.querySelectorAll('.person-node.touch-active').forEach(n => n.classList.remove('touch-active'));
+            if (!isActive) el.classList.add('touch-active');
+          });
+          el.querySelectorAll('.nbtn').forEach(btn => {
+            btn.addEventListener('click', e => {
+              e.stopPropagation();
+              const pid = btn.dataset.pid;
+              const dir = btn.dataset.dir;
+              if (dir === 'add') { this._onAddRelation(pid); }
+              else { this._expandDirection(pid, dir); }
+            });
+          });
+
+          this.nodeContainer.appendChild(el);
+          this.nodes.get(person.personId).el = el;
+        }
+
+        async _expandDirection(personId, direction) {
+          const key = `${personId}-${direction}`;
+          const nodeData = this.nodeGrid.get(personId);
+          if (!nodeData) return;
+          const { row, col } = nodeData;
+
+          if (this.expanded.has(key)) { this.expanded.delete(key); return; }
+          this.expanded.add(key);
+
+          const btn = this.nodeContainer.querySelector(`.nbtn[data-pid="${personId}"][data-dir="${direction}"]`);
+          if (btn) { btn.disabled = true; btn.innerHTML = '<span class="animate-spin inline-block">⟳</span>'; }
+
+          const res = await API.getRelations(personId);
+          if (!res.success) { UI.toast(res.message, 'error'); }
+          else {
+            const filtered = res.data.filter(r => r.relationType === direction);
+            let targetRow = row, startCol = col;
+            if (direction === 'parent') { targetRow = row - 1; startCol = col - Math.floor(filtered.length / 2); }
+            else if (direction === 'child') { targetRow = row + 1; startCol = col - Math.floor(filtered.length / 2); }
+            else if (direction === 'spouse') { targetRow = row; startCol = col - 1; }
+            else if (direction === 'sibling') { targetRow = row; startCol = col + 1; }
+
+            filtered.forEach((rel, i) => {
+              const toPerson = rel.person;
+              if (!toPerson) return;
+              if (!this.nodes.has(toPerson.personId)) { this._placeNode(toPerson, targetRow, startCol + i); }
+              this._drawEdge(personId, toPerson.personId, rel.relationType);
+            });
+
+            if (filtered.length === 0) UI.toast('ไม่พบข้อมูล' + REL_TH[direction], 'info', 2000);
+          }
+
+          if (btn) { btn.disabled = false; btn.innerHTML = { parent: '↑', child: '↓', spouse: '💑', sibling: '👨‍👩‍👧‍👦' }[direction]; }
+        }
+
+        // Convert a viewport-space point to screen (SVG) coordinates
+        _toScreen(vpX, vpY) {
+          return {
+            x: vpX * this.scale + this.panX,
+            y: vpY * this.scale + this.panY
+          };
+        }
+
+        _drawEdge(fromId, toId, relType) {
+          const edgeKey = [fromId, toId].sort().join('\u2192') + '|' + relType;
+          if (this.edges.has(edgeKey)) return;
+          this.edges.add(edgeKey);
+
+          const fromData = this.nodeGrid.get(fromId);
+          const toData   = this.nodeGrid.get(toId);
+          if (!fromData || !toData) return;
+
+          const fp = this.gridPos(fromData.row, fromData.col);
+          const tp = this.gridPos(toData.row,   toData.col);
+          const color = REL_COLORS[relType] || '#ffffff';
+
+          // Anchor: child/parent always vertical (bottom↔top); spouse/sibling horizontal
+          const dRow = toData.row - fromData.row;
+          const dCol = toData.col - fromData.col;
+          const hw = CARD_W / 2;
+          let fx = fp.x, fy = fp.y, tx = tp.x, ty = tp.y;
+
+          const isVerticalRel = ['child','parent','adopted_child','adopted_parent'].includes(relType);
+          if (isVerticalRel || Math.abs(dRow) >= Math.abs(dCol)) {
+            // Always attach bottom→top for child/parent relations
+            fy = fp.y + (dRow >= 0 ? V_ANCHOR : -CARD_H / 2);
+            ty = tp.y + (dRow >= 0 ? -CARD_H / 2 : V_ANCHOR);
+          } else {
+            fx = fp.x + (dCol > 0 ? hw : -hw);
+            tx = tp.x + (dCol > 0 ? -hw : hw);
+          }
+
+          // Convert viewport → SVG (screen) coords
+          const sf = this._toScreen(fx, fy);
+          const st = this._toScreen(tx, ty);
+          const smx = (sf.x + st.x) / 2;
+          const smy = (sf.y + st.y) / 2;
+
+          const isVerticalPath = ['child','parent','adopted_child','adopted_parent'].includes(relType) || Math.abs(dRow) >= Math.abs(dCol);
+          let pathD;
+          if (isVerticalPath) {
+            pathD = `M${sf.x},${sf.y} C${sf.x},${smy} ${st.x},${smy} ${st.x},${st.y}`;
+          } else {
+            pathD = `M${sf.x},${sf.y} C${smx},${sf.y} ${smx},${st.y} ${st.x},${st.y}`;
+          }
+
+          // Glow
+          const glow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          glow.setAttribute('d', pathD);
+          glow.setAttribute('stroke', color);
+          glow.setAttribute('stroke-width', '8');
+          glow.setAttribute('fill', 'none');
+          glow.setAttribute('stroke-linecap', 'round');
+          glow.setAttribute('opacity', '0.25');
+          this.edgeGroup.appendChild(glow);
+
+          // Main line — fade in (no dasharray issues)
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', pathD);
+          path.setAttribute('stroke', color);
+          path.setAttribute('stroke-width', '3');
+          path.setAttribute('fill', 'none');
+          path.setAttribute('stroke-linecap', 'round');
+          path.style.opacity = '0';
+          path.style.transition = 'opacity 0.5s ease';
+          this.edgeGroup.appendChild(path);
+          requestAnimationFrame(() => { path.style.opacity = '0.9'; });
+
+          // Label pill
+          const label = REL_TH[relType] || relType;
+          const fontSize = 11 * this.scale;
+          const lw = label.length * fontSize * 0.65 + 14;
+          const lh = fontSize + 8;
+
+          const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          rect.setAttribute('x', smx - lw / 2);
+          rect.setAttribute('y', smy - lh / 2);
+          rect.setAttribute('width', lw);
+          rect.setAttribute('height', lh);
+          rect.setAttribute('rx', lh / 2);
+          rect.setAttribute('fill', '#0d0d1a');
+          rect.setAttribute('fill-opacity', '0.9');
+          rect.setAttribute('stroke', color);
+          rect.setAttribute('stroke-width', '1.5');
+          rect.setAttribute('stroke-opacity', '0.8');
+          this.edgeGroup.appendChild(rect);
+
+          const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          text.setAttribute('x', smx);
+          text.setAttribute('y', smy + fontSize * 0.35);
+          text.setAttribute('text-anchor', 'middle');
+          text.setAttribute('fill', color);
+          text.setAttribute('font-size', String(Math.max(9, fontSize)));
+          text.setAttribute('font-weight', '600');
+          text.setAttribute('font-family', 'Noto Sans Thai, sans-serif');
+          text.textContent = label;
+          this.edgeGroup.appendChild(text);
+
+          // Store edge elements for re-rendering on pan/zoom
+          if (!this._edgeData) this._edgeData = [];
+          this._edgeData.push({ fromId, toId, relType, glow, path, rect, text, isVerticalPath });
+        }
+
+        // Redraw edge positions when pan/zoom changes
+        _redrawEdges() {
+          if (!this._edgeData) return;
+          this._edgeData.forEach(({ fromId, toId, relType, glow, path, rect, text, isVerticalPath }) => {
+            const fromData = this.nodeGrid.get(fromId);
+            const toData   = this.nodeGrid.get(toId);
+            if (!fromData || !toData) return;
+
+            const fp = this.gridPos(fromData.row, fromData.col);
+            const tp = this.gridPos(toData.row,   toData.col);
+            const dRow = toData.row - fromData.row;
+            const dCol = toData.col - fromData.col;
+            const hw = CARD_W / 2;
+            let fx = fp.x, fy = fp.y, tx = tp.x, ty = tp.y;
+            if (isVerticalPath) {
+              fy = fp.y + (dRow >= 0 ? V_ANCHOR : -CARD_H / 2);
+              ty = tp.y + (dRow >= 0 ? -CARD_H / 2 : V_ANCHOR);
+            } else {
+              fx = fp.x + (dCol > 0 ? hw : -hw);
+              tx = tp.x + (dCol > 0 ? -hw : hw);
+            }
+            const sf = this._toScreen(fx, fy);
+            const st = this._toScreen(tx, ty);
+            const smx = (sf.x + st.x) / 2;
+            const smy = (sf.y + st.y) / 2;
+            const pathD = isVerticalPath
+              ? `M${sf.x},${sf.y} C${sf.x},${smy} ${st.x},${smy} ${st.x},${st.y}`
+              : `M${sf.x},${sf.y} C${smx},${sf.y} ${smx},${st.y} ${st.x},${st.y}`;
+
+            glow.setAttribute('d', pathD);
+            path.setAttribute('d', pathD);
+
+            const fontSize = 11 * this.scale;
+            const lw = text.textContent.length * fontSize * 0.65 + 14;
+            const lh = fontSize + 8;
+            rect.setAttribute('x', smx - lw / 2); rect.setAttribute('y', smy - lh / 2);
+            rect.setAttribute('width', lw); rect.setAttribute('height', lh);
+            rect.setAttribute('rx', lh / 2);
+            text.setAttribute('x', smx); text.setAttribute('y', smy + fontSize * 0.35);
+            text.setAttribute('font-size', String(Math.max(9, fontSize)));
+          });
+        }
+
+        _onAddRelation(personId) {
+          if (this._addRelationCallback) this._addRelationCallback(personId);
+        }
+
+        // ✅ method wrappers — รับ callback แบบเดียวกัน
+        onSelectPerson(cb) { this._selectPersonCallback = cb; }
+        onAddRelation(cb)  { this._addRelationCallback  = cb; }
+        onPinNode(cb)      { this._pinNodeCallback      = cb; }
+
+        _onAddRelation(personId) {
+          if (this._addRelationCallback) this._addRelationCallback(personId);
+        }
+
+        resetView() { this.scale = 1; this._centerViewport(); }
+        zoomIn() { this.scale = Math.min(3, this.scale * 1.2); this._applyTransform(); }
+        zoomOut() { this.scale = Math.max(0.2, this.scale / 1.2); this._applyTransform(); }
+      }
+
+      return { Graph };
+    })();
+  </script>
+  <script>
+    // ── State ────────────────────────────────────────────────
+    let graph = null;
+    let currentPerson = null;
+    let relFromPersonId = null;
+    let relSelectedPerson = null;
+    let mergeTargetPerson = null;
+    let editingPersonId = null;
+    let searchTimer = null;
+    let lastSearchResults = [];
+
+    // ── Init ─────────────────────────────────────────────────
+    window.addEventListener('DOMContentLoaded', () => {
+      updateNavAuth();
+      setupSearch();
+      if (Auth.isLoggedIn()) document.getElementById('btn-add-first').classList.remove('hidden');
+    });
+
+    window.addEventListener('auth-change', () => updateNavAuth());
+
+    function updateNavAuth() {
+      const user = Auth.getUser();
+      const nav = document.getElementById('nav-auth');
+      if (user) {
+        nav.innerHTML = `
+      <span class="text-sm text-white/60 hidden sm:block">${user.displayName}</span>
+      ${user.role === 'admin' ? '<a href="admin.html" class="btn btn-ghost btn-sm">⚙️ Admin</a>' : ''}
+      <button onclick="doLogout()" class="btn btn-ghost btn-sm">ออก</button>`;
+      } else {
+        nav.innerHTML = `<a href="login.html" class="btn btn-ghost btn-sm">เข้าสู่ระบบ</a>`;
+      }
+      document.getElementById('btn-add-first')?.classList.toggle('hidden', !Auth.isLoggedIn());
+    }
+
+    async function doLogout() {
+      await Auth.logout();
+      updateNavAuth();
+      UI.toast('ออกจากระบบแล้ว', 'info');
+    }
+
+    // ── Search ───────────────────────────────────────────────
+    function setupSearch() {
+      const inp = document.getElementById('search-input');
+      inp.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        const q = inp.value.trim();
+        if (!q) { showSearchEmpty(); return; }
+        searchTimer = setTimeout(() => doSearch(q), CONFIG.SEARCH_DEBOUNCE);
+      });
+    }
+
+    function showSearchEmpty() {
+      document.getElementById('search-empty').classList.remove('hidden');
+      document.getElementById('search-loading').classList.add('hidden');
+      document.getElementById('search-results').classList.add('hidden');
+      document.getElementById('search-not-found').classList.add('hidden');
+    }
+
+    async function doSearch(q) {
+      document.getElementById('search-empty').classList.add('hidden');
+      document.getElementById('search-loading').classList.remove('hidden');
+      document.getElementById('search-results').classList.add('hidden');
+      document.getElementById('search-not-found').classList.add('hidden');
+
+      const res = await API.searchPerson(q);
+      document.getElementById('search-loading').classList.add('hidden');
+      if (!res.success) { UI.toast(res.message, 'error'); return; }
+
+      lastSearchResults = res.data || [];
+      if (!lastSearchResults.length) {
+        document.getElementById('search-not-found').classList.remove('hidden');
+        return;
+      }
+      const wrap = document.getElementById('search-results');
+      wrap.innerHTML = '';
+      lastSearchResults.forEach(p => wrap.appendChild(UI.searchCard(p, openGraph)));
+      wrap.classList.remove('hidden');
+    }
+
+    // ── Graph ─────────────────────────────────────────────────
+    function openGraph(person) {
+      currentPerson = person;
+      document.getElementById('view-search').classList.add('hidden');
+      document.getElementById('view-graph').classList.remove('hidden');
+      document.getElementById('graph-legend').classList.remove('hidden');
+      document.getElementById('graph-person-name').textContent = person.firstName + (person.lastName ? ' ' + person.lastName : '');
+
+      // Member controls
+      const isMember = Auth.isMember();
+      document.getElementById('btn-edit-person').classList.toggle('hidden', !isMember);
+      document.getElementById('btn-merge-person').classList.toggle('hidden', !isMember);
+      document.getElementById('link-admin').classList.toggle('hidden', !Auth.isAdmin());
+
+      if (!graph) {
+        graph = new FamilyGraph.Graph('graph-container');
+        graph.init();
+        graph.onSelectPerson(p => { 
+            UI.renderPersonDetail(p); 
+            // Injected button logic
+            const detailContent = document.getElementById('detail-content');
+            const manageBtnWrap = document.createElement('div');
+            manageBtnWrap.className = 'mt-4 pt-4 border-t border-white/10';
+            manageBtnWrap.innerHTML = Auth.isMember() ? `<button onclick="openManageRelations('${p.personId}', '${(p.firstName + ' ' + (p.lastName || '')).replace(/'/g,'')}')" class="btn btn-ghost w-full text-sm">✏️ จัดการความสัมพันธ์</button>` : '';
+            detailContent.appendChild(manageBtnWrap);
+            UI.openModal('modal-detail'); 
+        });
+        graph.onAddRelation(pid => { if (!Auth.isMember()) { UI.toast('กรุณาเข้าสู่ระบบก่อน', 'warning'); return; } relFromPersonId = pid; openAddRelation(); });
+        graph.onPinNode(p => {
+          currentPerson = p;
+          document.getElementById('graph-person-name').textContent = p.firstName + (p.lastName ? ' ' + p.lastName : '');
+          const m = Auth.isMember();
+          document.getElementById('btn-edit-person').classList.toggle('hidden', !m);
+          document.getElementById('btn-merge-person').classList.toggle('hidden', !m);
+          document.getElementById('link-admin').classList.toggle('hidden', !Auth.isAdmin());
+          graph.addRootNode(p);
+        });
+      }
+      graph.addRootNode(person);
+    }
+
+    function backToSearch() {
+      document.getElementById('view-graph').classList.add('hidden');
+      document.getElementById('graph-legend').classList.add('hidden');
+      document.getElementById('view-search').classList.remove('hidden');
+    }
+
+    // ── Person Modal ──────────────────────────────────────────
+    function openAddPerson(afterSaveCb) {
+      if (!Auth.isMember()) { window.location.href = 'login.html'; return; }
+      editingPersonId = null;
+      window._afterPersonSave = afterSaveCb || null;
+      document.getElementById('person-modal-title').textContent = 'เพิ่มบุคคล';
+      document.getElementById('person-form-wrap').innerHTML = PersonManager.buildForm();
+      document.getElementById('duplicate-warning').classList.add('hidden');
+      UI.openModal('modal-person');
+
+      // Duplicate check on name blur
+      document.getElementById('pf-firstName')?.addEventListener('blur', checkDuplicates);
+      document.getElementById('pf-lastName')?.addEventListener('blur', checkDuplicates);
+    }
+
+    function openEditPerson() {
+      if (!currentPerson || !Auth.isMember()) return;
+      editingPersonId = currentPerson.personId;
+      window._afterPersonSave = null;
+      document.getElementById('person-modal-title').textContent = 'แก้ไขข้อมูล';
+      document.getElementById('person-form-wrap').innerHTML = PersonManager.buildForm(currentPerson);
+      document.getElementById('duplicate-warning').classList.add('hidden');
+      UI.openModal('modal-person');
+    }
+
+    async function checkDuplicates() {
+      const fn = document.getElementById('pf-firstName')?.value.trim();
+      const ln = document.getElementById('pf-lastName')?.value.trim();
+      if (!fn) return;
+      const res = await API.searchPerson(fn);
+      if (res.success && res.data.length) {
+        const dups = PersonManager.findDuplicates({ firstName: fn, lastName: ln }, res.data);
+        if (dups.length) {
+          const warn = document.getElementById('duplicate-warning');
+          warn.textContent = `⚠️ พบบุคคลที่อาจซ้ำกัน: ${dups.map(d => d.firstName + ' ' + (d.lastName || '')).join(', ')} — กรุณาตรวจสอบก่อนเพิ่ม`;
+          warn.classList.remove('hidden');
+        }
+      }
+    }
+
+    async function savePerson() {
+      const btn = document.getElementById('btn-save-person');
+      const data = PersonManager.getFormData();
+      if (!data.firstName) { UI.toast('กรุณาใส่ชื่อ', 'error'); return; }
+
+      btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+
+      // Handle photo upload
+      const photoFile = document.getElementById('pf-photo')?.files?.[0];
+      if (photoFile) {
+        UI.showLoading('กำลังอัปโหลดรูป...');
+        const upRes = await PersonManager.uploadPhoto(photoFile);
+        UI.hideLoading();
+        if (upRes.success) data.photoUrl = upRes.data.photoUrl;
+        else UI.toast('อัปโหลดรูปไม่สำเร็จ: ' + upRes.message, 'warning');
+      }
+
+      let res;
+      if (editingPersonId) {
+        res = await API.updatePerson({ ...data, personId: editingPersonId });
+      } else {
+        res = await API.addPerson(data);
+      }
+
+      btn.disabled = false; btn.textContent = 'บันทึก';
+      if (res.success) {
+        UI.toast(res.message, 'success');
+        UI.closeModal('modal-person');
+        if (window._afterPersonSave) window._afterPersonSave(res.data);
+        else if (editingPersonId) {
+          // Refresh current person
+          const refreshed = await API.getPerson(editingPersonId);
+          if (refreshed.success) { currentPerson = refreshed.data; UI.renderPersonDetail(refreshed.data); }
+        }
+      } else { UI.toast(res.message, 'error'); }
+    }
+
+    // ── Relation Modal ────────────────────────────────────────
+    function openAddRelation() {
+      relSelectedPerson = null;
+      document.getElementById('rel-search').value = '';
+      document.getElementById('rel-search-results').innerHTML = '';
+      document.getElementById('rel-selected').classList.add('hidden');
+      UI.openModal('modal-relation');
+
+      let relTimer;
+      document.getElementById('rel-search').oninput = () => {
+        clearTimeout(relTimer);
+        const q = document.getElementById('rel-search').value.trim();
+        if (!q) return;
+        relTimer = setTimeout(() => searchForRelation(q), 400);
+      };
+    }
+
+    async function searchForRelation(q) {
+      const res = await API.searchPerson(q);
+      const wrap = document.getElementById('rel-search-results');
+      wrap.innerHTML = '';
+      if (!res.success || !res.data.length) { wrap.innerHTML = '<p class="text-white/40 text-sm">ไม่พบ</p>'; return; }
+      res.data.slice(0, 10).forEach(p => {
+        const btn = document.createElement('button');
+        btn.className = 'w-full text-left p-2 rounded-xl hover:bg-white/10 transition flex items-center gap-3';
+        btn.innerHTML = `<div class="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">${UI.avatar(p, 'w-8 h-8')}</div>
+      <div><p class="text-white text-sm font-medium">${p.firstName} ${p.lastName || ''}</p>
+           ${p.nickName ? `<p class="text-amber-300 text-xs">"${p.nickName}"</p>` : ''}</div>`;
+        btn.onclick = () => selectRelPerson(p);
+        wrap.appendChild(btn);
+      });
+    }
+
+    function selectRelPerson(p) {
+      relSelectedPerson = p;
+      const el = document.getElementById('rel-selected');
+      el.textContent = `เลือก: ${p.firstName} ${p.lastName || ''} ${p.nickName ? `"${p.nickName}"` : ''}`;
+      el.classList.remove('hidden');
+      document.getElementById('rel-search-results').innerHTML = '';
+    }
+
+    function addNewForRelation() {
+      UI.closeModal('modal-relation');
+      openAddPerson(newPerson => {
+        if (newPerson) { relSelectedPerson = { personId: newPerson.personId, firstName: newPerson.firstName }; openAddRelation(); }
+      });
+    }
+
+    async function saveRelation() {
+      if (!relFromPersonId || !relSelectedPerson) { UI.toast('กรุณาเลือกบุคคล', 'error'); return; }
+      const relType = document.getElementById('rel-type').value;
+      const btn = document.getElementById('btn-save-rel');
+      btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+      const res = await API.addRelation({ fromPersonId: relFromPersonId, toPersonId: relSelectedPerson.personId, relationType: relType });
+      btn.disabled = false; btn.textContent = 'บันทึกความสัมพันธ์';
+      if (res.success) { UI.toast(res.message, 'success'); UI.closeModal('modal-relation'); }
+      else UI.toast(res.message, 'error');
+    }
+
+    // ── Merge ─────────────────────────────────────────────────
+    function openMerge() {
+      if (!currentPerson) return;
+      mergeTargetPerson = null;
+      document.getElementById('merge-source-name').textContent = currentPerson.firstName + ' ' + (currentPerson.lastName || '');
+      document.getElementById('merge-search').value = '';
+      document.getElementById('merge-results').innerHTML = '';
+      document.getElementById('merge-target-selected').classList.add('hidden');
+      UI.openModal('modal-merge');
+
+      let mTimer;
+      document.getElementById('merge-search').oninput = () => {
+        clearTimeout(mTimer);
+        const q = document.getElementById('merge-search').value.trim();
+        if (!q) return;
+        mTimer = setTimeout(() => searchForMerge(q), 400);
+      };
+    }
+
+    async function searchForMerge(q) {
+      const res = await API.searchPerson(q);
+      const wrap = document.getElementById('merge-results');
+      wrap.innerHTML = '';
+      if (!res.success || !res.data.length) { wrap.innerHTML = '<p class="text-white/40 text-sm">ไม่พบ</p>'; return; }
+      res.data.filter(p => p.personId !== currentPerson?.personId).slice(0, 8).forEach(p => {
+        const btn = document.createElement('button');
+        btn.className = 'w-full text-left p-2 rounded-xl hover:bg-white/10 transition text-white text-sm';
+        btn.textContent = `${p.firstName} ${p.lastName || ''} ${p.nickName ? `"${p.nickName}"` : ''}`;
+        btn.onclick = () => {
+          mergeTargetPerson = p;
+          document.getElementById('merge-target-selected').textContent = `Target: ${p.firstName} ${p.lastName || ''}`;
+          document.getElementById('merge-target-selected').classList.remove('hidden');
+          wrap.innerHTML = '';
+        };
+        wrap.appendChild(btn);
+      });
+    }
+
+    async function confirmMerge() {
+      if (!currentPerson || !mergeTargetPerson) { UI.toast('กรุณาเลือกบุคคลที่ต้องการรวม', 'error'); return; }
+      if (!confirm(`รวม "${currentPerson.firstName}" เข้ากับ "${mergeTargetPerson.firstName}" ใช่หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้`)) return;
+      const res = await API.mergePerson(currentPerson.personId, mergeTargetPerson.personId);
+      if (res.success) { UI.toast('รวมข้อมูลสำเร็จ', 'success'); UI.closeModal('modal-merge'); openGraph(mergeTargetPerson); }
+      else UI.toast(res.message, 'error');
+    }
+
+    // ── Helpers ───────────────────────────────────────────────
+    function handleOverlayClick(e, modalId) {
+      if (e.target.id === modalId) UI.closeModal(modalId);
+    }
+
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') UI.closeAllModals(); });
+
+    // ── Manage Relations ──────────────────────────────────────
+    let _manageRelPersonId = null;
+
+    async function openManageRelations(personId, personName) {
+      _manageRelPersonId = personId;
+      document.getElementById('manage-rel-person-name').textContent = personName;
+      document.getElementById('manage-rel-list').innerHTML =
+        '<div class="text-center py-6"><div class="w-8 h-8 border-4 border-white/20 border-t-amber-400 rounded-full animate-spin mx-auto"></div></div>';
+      UI.openModal('modal-manage-relations');
+      await loadManageRelations(personId);
+    }
+
+    async function loadManageRelations(personId) {
+      const res = await API.getRelations(personId);
+      const listEl = document.getElementById('manage-rel-list');
+      if (!res.success) { listEl.innerHTML = `<p class="text-rose-400 text-sm">${res.message}</p>`; return; }
+      const rels = res.data || [];
+      if (!rels.length) {
+        listEl.innerHTML = '<p class="text-white/40 text-sm text-center py-4">ยังไม่มีความสัมพันธ์</p>';
+        return;
+      }
+      renderRelationRows(listEl, rels, personId);
+    }
+
+    const REL_LABELS_TH = {
+      parent: 'พ่อ/แม่', child: 'ลูก', spouse: 'คู่สมรส',
+      sibling: 'พี่/น้อง', adopted_parent: 'พ่อ/แม่อุปถัมภ์', adopted_child: 'ลูกบุญธรรม'
+    };
+    const REL_COLORS_MAP = {
+      parent: '#f59e0b', child: '#10b981', spouse: '#f43f5e',
+      sibling: '#8b5cf6', adopted_parent: '#f97316', adopted_child: '#06b6d4'
+    };
+
+    function renderRelationRows(listEl, rels, personId) {
+      listEl.innerHTML = '';
+      rels.forEach(rel => {
+        const p = rel.person;
+        const color = REL_COLORS_MAP[rel.relationType] || '#fff';
+        const row = document.createElement('div');
+        row.id = `rel-row-${rel.relationId}`;
+        row.className = 'flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10';
+        row.innerHTML = `
+          <div class="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 border-2" style="border-color:${color}20">
+            ${UI.avatar(p, 'w-9 h-9')}
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-white text-sm font-medium truncate">${p.firstName} ${p.lastName || ''}</p>
+            <div class="flex items-center gap-2 mt-1">
+              <select class="rel-type-select text-xs px-2 py-1 rounded-lg bg-white/10 text-white border border-white/20 focus:border-amber-400 outline-none"
+                      data-rel-id="${rel.relationId}" data-original="${rel.relationType}">
+                <option value="parent"   ${rel.relationType==='parent'   ?'selected':''}>พ่อ/แม่</option>
+                <option value="child"    ${rel.relationType==='child'    ?'selected':''}>ลูก</option>
+                <option value="spouse"   ${rel.relationType==='spouse'   ?'selected':''}>คู่สมรส</option>
+                <option value="sibling"  ${rel.relationType==='sibling'  ?'selected':''}>พี่/น้อง</option>
+                <option value="adopted_parent" ${rel.relationType==='adopted_parent'?'selected':''}>พ่อ/แม่อุปถัมภ์</option>
+                <option value="adopted_child"  ${rel.relationType==='adopted_child' ?'selected':''}>ลูกบุญธรรม</option>
+              </select>
+              <button onclick="saveEditRelation('${rel.relationId}', this)" class="rel-save-btn hidden btn btn-primary" style="padding:2px 10px;font-size:11px;">บันทึก</button>
+            </div>
+          </div>
+          <button onclick="confirmDeleteRelation('${rel.relationId}', '${(p.firstName+' '+(p.lastName||'')).replace(/'/g,'')}', '${rel.relationType}')" 
+                  class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white/40 hover:text-rose-400 hover:bg-rose-500/10 transition-all" title="ลบความสัมพันธ์">
+            🗑
+          </button>`;
+        // Show save button when type changes
+        const sel = row.querySelector('.rel-type-select');
+        sel.addEventListener('change', () => {
+          const saveBtn = row.querySelector('.rel-save-btn');
+          saveBtn.classList.toggle('hidden', sel.value === sel.dataset.original);
+        });
+        listEl.appendChild(row);
+      });
+    }
+
+    async function saveEditRelation(relationId, btn) {
+      const row = document.getElementById(`rel-row-${relationId}`);
+      const sel = row.querySelector('.rel-type-select');
+      const newType = sel.value;
+      btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+      const res = await API.updateRelation({ relationId, relationType: newType });
+      btn.disabled = false; btn.textContent = 'บันทึก';
+      if (res.success) {
+        UI.toast(res.message, 'success');
+        sel.dataset.original = newType;
+        btn.classList.add('hidden');
+        // update badge color
+        const border = row.querySelector('div[style*="border-color"]');
+        if (border) border.style.borderColor = (REL_COLORS_MAP[newType] || '#fff') + '20';
+      } else {
+        UI.toast(res.message, 'error');
+      }
+    }
+
+    async function confirmDeleteRelation(relationId, personName, relType) {
+      const label = REL_LABELS_TH[relType] || relType;
+      if (!confirm(`ลบความสัมพันธ์ "${label}" กับ "${personName}" ใช่หรือไม่?\n(จะลบทั้งสองทิศทางพร้อมกัน)`)) return;
+      const res = await API.deleteRelation(relationId);
+      if (res.success) {
+        UI.toast(res.message, 'success');
+        // Remove the row from UI
+        document.getElementById(`rel-row-${relationId}`)?.remove();
+        // Show empty message if no rows left
+        const listEl = document.getElementById('manage-rel-list');
+        if (!listEl.children.length) {
+          listEl.innerHTML = '<p class="text-white/40 text-sm text-center py-4">ยังไม่มีความสัมพันธ์</p>';
+        }
+      } else {
+        UI.toast(res.message, 'error');
+      }
+    }
+  </script>
+</body>
+
+</html>
